@@ -1,0 +1,40 @@
+name: Helm chart check
+description: >-
+  helm lint, helm template, and (unless disabled) a server-side kubectl
+  dry-run against the real cluster -- catches admission-webhook
+  rejections client-side dry-run can't. The shared check for every
+  k8s- repo's chart.
+inputs:
+  chart-path:
+    description: Path to the Helm chart
+    required: false
+    default: manifests
+  namespace:
+    description: >-
+      Used as the helm template release name, and (when dry-run is
+      enabled) to target the dry-run and derive the CI ServiceAccount
+      name (<namespace>-ci) -- which must already exist, see the
+      k8s-ci-rbac repo.
+    required: true
+  dry-run:
+    description: >-
+      Set to "false" to skip the server-side dry-run step (e.g. for
+      k8s-ci-rbac's own CI, which has no target RBAC to dry-run against).
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+      with:
+        version: "v3.21.4"
+    - uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+      with:
+        version: "v1.35.7" # verify against the live cluster's version before merging
+      if: inputs.dry-run == 'true'
+    - shell: bash
+      run: bash "${{ github.action_path }}/check.sh"
+      env:
+        CHART_PATH: ${{ inputs.chart-path }}
+        NAMESPACE: ${{ inputs.namespace }}
+        DRY_RUN: ${{ inputs.dry-run }}
