@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Resolve chart dependencies before validating.
+helm dependency build "$CHART_PATH"
 helm lint "$CHART_PATH"
 helm template "$NAMESPACE" "$CHART_PATH" > /tmp/rendered.yaml
 
@@ -42,9 +44,11 @@ API=https://kubernetes.default.svc
 CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 RUNNER_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
 
+service_account="${SERVICE_ACCOUNT:-${NAMESPACE}-ci}"
+
 ci_token=$(kubectl --server="$API" --certificate-authority="$CA" \
   --token="$(cat "$RUNNER_TOKEN")" \
-  create token "${NAMESPACE}-ci" -n "$NAMESPACE" --duration=10m)
+  create token "$service_account" -n "$NAMESPACE" --duration=10m)
 echo "::add-mask::$ci_token"
 
 kubectl --server="$API" --certificate-authority="$CA" \

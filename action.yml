@@ -22,6 +22,12 @@ inputs:
       k8s-ci-rbac's own CI, which has no target RBAC to dry-run against).
     required: false
     default: "true"
+  service-account:
+    description: >-
+      Override the CI ServiceAccount name used to mint the dry-run
+      token. Leave unset to preserve today's default of <namespace>-ci.
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
@@ -38,3 +44,4 @@ runs:
         CHART_PATH: ${{ inputs.chart-path }}
         NAMESPACE: ${{ inputs.namespace }}
         DRY_RUN: ${{ inputs.dry-run }}
+        SERVICE_ACCOUNT: ${{ inputs.service-account }}
