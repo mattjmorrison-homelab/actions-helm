@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
+# Resolve chart dependencies before validating.
+helm dependency build "$CHART_PATH"
 helm lint "$CHART_PATH"
 helm template "$NAMESPACE" "$CHART_PATH" > /tmp/rendered.yaml
 
@@ -9,16 +11,16 @@ if [ "$DRY_RUN" != "true" ]; then
   exit 0
 fi
 
-# namespace.yaml (if the chart has one) renders a cluster-scoped Namespace
-# object, which no namespace-scoped Role can ever grant dry-run access to.
-# Split the multi-doc render on "---" and drop any document whose
-# top-level kind is Namespace. Plain bash + grep -- yq isn't installed on
-# this runner image.
+# Some charts render cluster-scoped objects (Namespace, ClusterRole,
+# ClusterRoleBinding), which no namespace-scoped Role can ever grant
+# dry-run access to. Split the multi-doc render on "---" and drop any
+# document whose top-level kind is one of those. Plain bash + grep --
+# yq isn't installed on this runner image.
 : > /tmp/rendered-filtered.yaml
 doc=""
 first=1
 flush() {
-  if [[ -n "$doc" ]] && ! grep -q '^kind: Namespace$' <<< "$doc"; then
+  if [[ -n "$doc" ]] && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding)$' <<< "$doc"; then
     [[ "$first" -eq 0 ]] && printf -- '---\n' >> /tmp/rendered-filtered.yaml
     printf '%s' "$doc" >> /tmp/rendered-filtered.yaml
     first=0
@@ -42,9 +44,11 @@ API=https://kubernetes.default.svc
 CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 RUNNER_TOKEN=/var/run/secrets/kubernetes.io/serviceaccount/token
 
+service_account="${SERVICE_ACCOUNT:-${NAMESPACE}-ci}"
+
 ci_token=$(kubectl --server="$API" --certificate-authority="$CA" \
   --token="$(cat "$RUNNER_TOKEN")" \
-  create token "${NAMESPACE}-ci" -n "$NAMESPACE" --duration=10m)
+  create token "$service_account" -n "$NAMESPACE" --duration=10m)
 echo "::add-mask::$ci_token"
 
 kubectl --server="$API" --certificate-authority="$CA" \

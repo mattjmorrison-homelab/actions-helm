@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+if [[ "$*" == *"create token"* ]]; then
+  if [[ -n "${KUBECTL_TOKEN_SA_LOG:-}" ]]; then
+    prev=""
+    for arg in "$@"; do
+      if [[ "$prev" == "token" ]]; then
+        echo "$arg" > "$KUBECTL_TOKEN_SA_LOG"
+      fi
+      prev="$arg"
+    done
+  fi
+  echo "fake-token"
+  exit 0
+fi
+
+if [[ "$*" == *"apply"* ]]; then
+  prev=""
+  for arg in "$@"; do
+    if [[ "$prev" == "-f" ]]; then
+      cp "$arg" "$KUBECTL_APPLY_INPUT_FILE"
+    fi
+    prev="$arg"
+  done
+  exit 0
+fi
+
+echo "unexpected kubectl call: $*" >&2
+exit 1

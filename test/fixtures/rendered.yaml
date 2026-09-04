@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: testns
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: testns
+  namespace: testns
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: testapp
+  namespace: testns
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: testapp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: testapp

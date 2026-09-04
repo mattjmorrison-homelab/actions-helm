@@ -1,7 +1,7 @@
 # actions-helm
 
 A single reusable GitHub Actions composite action, shared by every
-`k8s-` repo in this org: `helm lint`, `helm template`, and (unless
+`k8s-` repo in this org: `helm dependency build`, `helm lint`, `helm template`, and (unless
 disabled) a server-side `kubectl apply --dry-run=server` against the
 real cluster. See `naming.md` in the `.github` repo for the `actions-`
 prefix: destination is other repos' CI, not the cluster itself.
@@ -46,6 +46,7 @@ resources) — that's what `k8s-ci-rbac` generates.
 | `chart-path` | string | `manifests` | Path to the Helm chart. |
 | `namespace` | string | *(required)* | Used as the `helm template` release name always. When `dry-run` is `true`, also the dry-run target and the source of the `<namespace>-ci` ServiceAccount name. |
 | `dry-run` | string | `"true"` | Set to `"false"` to stop after lint/template — e.g. `k8s-ci-rbac`'s own CI, which has no RBAC target of its own to validate against. |
+| `service-account` | string | *(empty)* | Override the CI ServiceAccount name used for dry-run. Defaults to `<namespace>-ci` if unset. Use this when your namespace's CI ServiceAccount has a different name (e.g. `prometheus-ci`). |
 
 ## Using it from another repo
 

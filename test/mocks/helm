@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+: "${HELM_CALL_LOG:=/dev/null}"
+echo "$*" >> "$HELM_CALL_LOG"
+case "$1" in
+  dependency)
+    if [[ "${2:-}" == "build" ]]; then exit 0; fi
+    echo "unexpected helm call: $*" >&2
+    exit 1
+    ;;
+  lint) exit 0 ;;
+  template) cat "$FIXTURES_DIR/${HELM_TEMPLATE_FIXTURE:-rendered.yaml}" ;;
+  *)
+    echo "unexpected helm call: $*" >&2
+    exit 1
+    ;;
+esac
