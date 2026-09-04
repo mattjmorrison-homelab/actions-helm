@@ -32,6 +32,15 @@ setup() {
   grep -q '^kind: Deployment$' "$KUBECTL_APPLY_INPUT_FILE"
 }
 
+@test "filters cluster-scoped ClusterRole and ClusterRoleBinding objects out before the dry-run" {
+  export DRY_RUN=true
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [ -f "$KUBECTL_APPLY_INPUT_FILE" ]
+  ! grep -q '^kind: ClusterRole$' "$KUBECTL_APPLY_INPUT_FILE"
+  ! grep -q '^kind: ClusterRoleBinding$' "$KUBECTL_APPLY_INPUT_FILE"
+}
+
 @test "masks the minted token in output" {
   export DRY_RUN=true
   run bash "$BATS_TEST_DIRNAME/../check.sh"

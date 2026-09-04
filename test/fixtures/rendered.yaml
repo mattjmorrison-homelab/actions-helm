@@ -14,3 +14,13 @@ kind: Deployment
 metadata:
   name: testapp
   namespace: testns
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: testapp
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: testapp

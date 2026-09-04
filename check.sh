@@ -11,16 +11,16 @@ if [ "$DRY_RUN" != "true" ]; then
   exit 0
 fi
 
-# namespace.yaml (if the chart has one) renders a cluster-scoped Namespace
-# object, which no namespace-scoped Role can ever grant dry-run access to.
-# Split the multi-doc render on "---" and drop any document whose
-# top-level kind is Namespace. Plain bash + grep -- yq isn't installed on
-# this runner image.
+# Some charts render cluster-scoped objects (Namespace, ClusterRole,
+# ClusterRoleBinding), which no namespace-scoped Role can ever grant
+# dry-run access to. Split the multi-doc render on "---" and drop any
+# document whose top-level kind is one of those. Plain bash + grep --
+# yq isn't installed on this runner image.
 : > /tmp/rendered-filtered.yaml
 doc=""
 first=1
 flush() {
-  if [[ -n "$doc" ]] && ! grep -q '^kind: Namespace$' <<< "$doc"; then
+  if [[ -n "$doc" ]] && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding)$' <<< "$doc"; then
     [[ "$first" -eq 0 ]] && printf -- '---\n' >> /tmp/rendered-filtered.yaml
     printf '%s' "$doc" >> /tmp/rendered-filtered.yaml
     first=0
