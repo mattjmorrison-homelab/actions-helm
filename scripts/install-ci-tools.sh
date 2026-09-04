@@ -7,6 +7,8 @@ set -euo pipefail
 
 mkdir -p "$RUNNER_TEMP/bin"
 
+command -v xz >/dev/null || sudo apt-get install -y xz-utils
+
 curl -sfL "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz" \
   | tar -xz -C "$RUNNER_TEMP/bin" actionlint
 
