@@ -13,14 +13,21 @@ fi
 
 # Some charts render cluster-scoped objects (Namespace, ClusterRole,
 # ClusterRoleBinding), which no namespace-scoped Role can ever grant
-# dry-run access to. Split the multi-doc render on "---" and drop any
-# document whose top-level kind is one of those. Plain bash + grep --
-# yq isn't installed on this runner image.
+# dry-run access to. Role/RoleBinding are excluded for a different but
+# equally fundamental reason: Kubernetes' own RBAC privilege-escalation
+# check blocks creating/patching a Role or RoleBinding that grants any
+# permission the actor doesn't already hold, regardless of namespace --
+# no CI identity narrower than the permissions a chart's own shipped
+# RBAC grants can ever dry-run-apply that RBAC (confirmed against a
+# real chart shipping its own Role/RoleBinding for its controller,
+# distinct from any CI RBAC). Split the multi-doc render on "---" and
+# drop any document whose top-level kind is one of those. Plain bash +
+# grep -- yq isn't installed on this runner image.
 : > /tmp/rendered-filtered.yaml
 doc=""
 first=1
 flush() {
-  if [[ -n "$doc" ]] && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding)$' <<< "$doc"; then
+  if [[ -n "$doc" ]] && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding|Role|RoleBinding)$' <<< "$doc"; then
     [[ "$first" -eq 0 ]] && printf -- '---\n' >> /tmp/rendered-filtered.yaml
     printf '%s' "$doc" >> /tmp/rendered-filtered.yaml
     first=0

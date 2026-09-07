@@ -41,6 +41,15 @@ setup() {
   ! grep -q '^kind: ClusterRoleBinding$' "$KUBECTL_APPLY_INPUT_FILE"
 }
 
+@test "filters Role and RoleBinding objects out before the dry-run (RBAC escalation check would always reject them)" {
+  export DRY_RUN=true
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [ -f "$KUBECTL_APPLY_INPUT_FILE" ]
+  ! grep -q '^kind: Role$' "$KUBECTL_APPLY_INPUT_FILE"
+  ! grep -q '^kind: RoleBinding$' "$KUBECTL_APPLY_INPUT_FILE"
+}
+
 @test "masks the minted token in output" {
   export DRY_RUN=true
   run bash "$BATS_TEST_DIRNAME/../check.sh"
