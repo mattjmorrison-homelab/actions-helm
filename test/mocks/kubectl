@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [[ -n "${KUBECTL_CALL_LOG:-}" ]]; then
+  echo "$*" >> "$KUBECTL_CALL_LOG"
+fi
+
 if [[ "$*" == *"create token"* ]]; then
   if [[ -n "${KUBECTL_TOKEN_SA_LOG:-}" ]]; then
     prev=""

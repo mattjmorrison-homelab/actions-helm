@@ -4,7 +4,7 @@ set -euo pipefail
 # Resolve chart dependencies before validating.
 helm dependency build "$CHART_PATH"
 helm lint "$CHART_PATH"
-helm template "$NAMESPACE" "$CHART_PATH" > /tmp/rendered.yaml
+helm template "$NAMESPACE" "$CHART_PATH" --namespace "$NAMESPACE" > /tmp/rendered.yaml
 
 if [ "$DRY_RUN" != "true" ]; then
   echo "dry-run disabled, stopping after lint/template"
@@ -53,4 +53,4 @@ echo "::add-mask::$ci_token"
 
 kubectl --server="$API" --certificate-authority="$CA" \
   --token="$ci_token" \
-  apply --dry-run=server -f /tmp/rendered-filtered.yaml
+  apply --dry-run=server --namespace "$NAMESPACE" -f /tmp/rendered-filtered.yaml

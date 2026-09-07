@@ -64,3 +64,19 @@ setup() {
   [ -f "$HELM_CALL_LOG" ]
   [ "$(head -n1 "$HELM_CALL_LOG")" = "dependency build unused" ]
 }
+
+@test "passes --namespace to helm template, not just the release-name positional" {
+  export DRY_RUN=false
+  export HELM_CALL_LOG="$BATS_TEST_TMPDIR/helm-calls.log"
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  grep -qF -- "template testns unused --namespace testns" "$HELM_CALL_LOG"
+}
+
+@test "passes --namespace to the final kubectl apply dry-run" {
+  export DRY_RUN=true
+  export KUBECTL_CALL_LOG="$BATS_TEST_TMPDIR/kubectl-calls.log"
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  grep -qF -- "--namespace testns" <(grep "apply" "$KUBECTL_CALL_LOG")
+}
