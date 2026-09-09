@@ -20,14 +20,24 @@ fi
 # no CI identity narrower than the permissions a chart's own shipped
 # RBAC grants can ever dry-run-apply that RBAC (confirmed against a
 # real chart shipping its own Role/RoleBinding for its controller,
-# distinct from any CI RBAC). Split the multi-doc render on "---" and
-# drop any document whose top-level kind is one of those. Plain bash +
-# grep -- yq isn't installed on this runner image.
+# distinct from any CI RBAC). An ArgoCD-hook-annotated Job is excluded
+# for a third, unrelated reason: a Job's spec.template is immutable once
+# it exists live, so a server-side dry-run "update" against an
+# already-existing hook Job fails on any real change to a field inside
+# it, regardless of whether the change is correct -- ArgoCD's own
+# hook-delete-policy (BeforeHookCreation) deletes the old Job before
+# creating the new one on a real sync, which this dry-run doesn't
+# replicate. A plain (non-hook) Job is kept, since nothing here creates
+# a same-named Job repeatedly the way a hook does. Split the multi-doc
+# render on "---" and drop any document matching one of those. Plain
+# bash + grep -- yq isn't installed on this runner image.
 : > /tmp/rendered-filtered.yaml
 doc=""
 first=1
 flush() {
-  if [[ -n "$doc" ]] && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding|Role|RoleBinding)$' <<< "$doc"; then
+  if [[ -n "$doc" ]] \
+    && ! grep -qE '^kind: (Namespace|ClusterRole|ClusterRoleBinding|Role|RoleBinding)$' <<< "$doc" \
+    && ! { grep -qE '^kind: Job$' <<< "$doc" && grep -q 'argocd.argoproj.io/hook:' <<< "$doc"; }; then
     [[ "$first" -eq 0 ]] && printf -- '---\n' >> /tmp/rendered-filtered.yaml
     printf '%s' "$doc" >> /tmp/rendered-filtered.yaml
     first=0

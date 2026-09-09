@@ -50,6 +50,21 @@ setup() {
   ! grep -q '^kind: RoleBinding$' "$KUBECTL_APPLY_INPUT_FILE"
 }
 
+@test "filters an ArgoCD-hook-annotated Job out before the dry-run (its live Job's spec.template is immutable, so any real change to it always fails a server dry-run)" {
+  export DRY_RUN=true
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [ -f "$KUBECTL_APPLY_INPUT_FILE" ]
+  ! grep -q 'name: testapp-bootstrap' "$KUBECTL_APPLY_INPUT_FILE"
+}
+
+@test "keeps a plain (non-hook) Job in the dry-run input" {
+  export DRY_RUN=true
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  grep -q 'name: testapp-one-shot' "$KUBECTL_APPLY_INPUT_FILE"
+}
+
 @test "masks the minted token in output" {
   export DRY_RUN=true
   run bash "$BATS_TEST_DIRNAME/../check.sh"
