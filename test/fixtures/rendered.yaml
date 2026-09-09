@@ -36,3 +36,29 @@ kind: RoleBinding
 metadata:
   name: testapp
   namespace: testns
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testapp-bootstrap
+  namespace: testns
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  template:
+    spec:
+      containers:
+        - name: bootstrap
+          image: alpine
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: testapp-one-shot
+  namespace: testns
+spec:
+  template:
+    spec:
+      containers:
+        - name: one-shot
+          image: alpine
