@@ -1,6 +1,7 @@
 name: Helm chart check
 description: >-
-  helm lint, helm template, and (unless disabled) a server-side kubectl
+  helm lint, helm unittest (when the chart has helm-unittest tests under
+  tests/), helm template, and (unless disabled) a server-side kubectl
   dry-run against the real cluster -- catches admission-webhook
   rejections client-side dry-run can't. The shared check for every
   k8s- repo's chart.

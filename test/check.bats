@@ -97,6 +97,30 @@ setup() {
   grep -qF -- "template testns unused --namespace testns" "$HELM_CALL_LOG"
 }
 
+@test "chart with no helm-unittest tests skips the step cleanly" {
+  export DRY_RUN=false
+  export HELM_CALL_LOG="$BATS_TEST_TMPDIR/helm-calls.log"
+  export CHART_PATH="$BATS_TEST_TMPDIR/chart-no-tests"
+  mkdir -p "$CHART_PATH"
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no helm-unittest tests found"* ]]
+  ! grep -q '^plugin install' "$HELM_CALL_LOG"
+  ! grep -q '^unittest' "$HELM_CALL_LOG"
+}
+
+@test "chart with helm-unittest tests installs the plugin and runs helm unittest" {
+  export DRY_RUN=false
+  export HELM_CALL_LOG="$BATS_TEST_TMPDIR/helm-calls.log"
+  export CHART_PATH="$BATS_TEST_TMPDIR/chart-with-tests"
+  mkdir -p "$CHART_PATH/tests"
+  : > "$CHART_PATH/tests/example_test.yaml"
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  grep -qF -- "plugin install https://github.com/helm-unittest/helm-unittest" "$HELM_CALL_LOG"
+  grep -qF -- "unittest $CHART_PATH" "$HELM_CALL_LOG"
+}
+
 @test "passes --namespace to the final kubectl apply dry-run" {
   export DRY_RUN=true
   export KUBECTL_CALL_LOG="$BATS_TEST_TMPDIR/kubectl-calls.log"

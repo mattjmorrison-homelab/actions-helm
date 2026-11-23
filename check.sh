@@ -4,6 +4,15 @@ set -euo pipefail
 # Resolve chart dependencies before validating.
 helm dependency build "$CHART_PATH"
 helm lint "$CHART_PATH"
+
+if find "$CHART_PATH" -name '*_test.yaml' 2>/dev/null | grep -q .; then
+  echo "found helm-unittest tests under $CHART_PATH, installing helm-unittest plugin"
+  helm plugin install https://github.com/helm-unittest/helm-unittest
+  helm unittest "$CHART_PATH"
+else
+  echo "no helm-unittest tests found under $CHART_PATH, skipping helm unittest"
+fi
+
 helm template "$NAMESPACE" "$CHART_PATH" --namespace "$NAMESPACE" > /tmp/rendered.yaml
 
 if [ "$DRY_RUN" != "true" ]; then
