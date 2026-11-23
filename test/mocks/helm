@@ -9,6 +9,12 @@ case "$1" in
     ;;
   lint) exit 0 ;;
   template) cat "$FIXTURES_DIR/${HELM_TEMPLATE_FIXTURE:-rendered.yaml}" ;;
+  plugin)
+    if [[ "${2:-}" == "install" ]]; then exit 0; fi
+    echo "unexpected helm call: $*" >&2
+    exit 1
+    ;;
+  unittest) exit 0 ;;
   *)
     echo "unexpected helm call: $*" >&2
     exit 1
