@@ -15,6 +15,99 @@ fi
 
 helm template "$NAMESPACE" "$CHART_PATH" --namespace "$NAMESPACE" > /tmp/rendered.yaml
 
+if ! command -v yq >/dev/null 2>&1; then
+  echo "yq not found, installing"
+  case "$(uname -m)" in
+    x86_64) yq_arch=amd64 ;;
+    aarch64|arm64) yq_arch=arm64 ;;
+    *) echo "unsupported architecture for yq install: $(uname -m)" >&2; exit 1 ;;
+  esac
+  yq_install_dir="${RUNNER_TEMP:-/tmp}/actions-helm-bin"
+  mkdir -p "$yq_install_dir"
+  curl -sfL -o "$yq_install_dir/yq" "https://github.com/mikefarah/yq/releases/download/v4.47.1/yq_linux_${yq_arch}"
+  chmod +x "$yq_install_dir/yq"
+  export PATH="$yq_install_dir:$PATH"
+fi
+
+check_hook_resource_ordering() {
+  local resource_kind="$1" job_name="$2" job_hook="$3" job_wave="$4"
+  local -n ref_hook_map="$5"
+  local -n ref_wave_map="$6"
+  shift 6
+  local ref_name ref_hook ref_wave
+  for ref_name in "$@"; do
+    [[ -z "$ref_name" ]] && continue
+    ref_hook="${ref_hook_map[$ref_name]:-}"
+    ref_wave="${ref_wave_map[$ref_name]:-}"
+    [[ -z "$ref_hook" ]] && continue
+    if [[ "$ref_hook" != "$job_hook" ]] || (( ref_wave >= job_wave )); then
+      echo "ERROR: hook Job '$job_name' (hook=$job_hook, sync-wave=$job_wave) mounts $resource_kind '$ref_name' (hook=$ref_hook, sync-wave=$ref_wave) with no guaranteed ordering within the same hook phase." >&2
+      echo "  Fix: give '$ref_name' the same hook phase ($job_hook) and a sync-wave strictly lower than the Job's, e.g. argocd.argoproj.io/sync-wave: \"$((job_wave - 1))\"." >&2
+      hook_ordering_failed=1
+    fi
+  done
+}
+
+rendered_docs=()
+doc=""
+while IFS= read -r line || [[ -n "$line" ]]; do
+  if [[ "$line" == "---" ]]; then
+    rendered_docs+=("$doc")
+    doc=""
+  else
+    doc+="$line"$'\n'
+  fi
+done < /tmp/rendered.yaml
+rendered_docs+=("$doc")
+
+declare -A configmap_hook_by_name
+declare -A configmap_wave_by_name
+declare -A secret_hook_by_name
+declare -A secret_wave_by_name
+
+for doc in "${rendered_docs[@]}"; do
+  [[ -z "${doc//[[:space:]]/}" ]] && continue
+  kind=$(yq eval '.kind // ""' <<< "$doc")
+  name=$(yq eval '.metadata.name // ""' <<< "$doc")
+  [[ -z "$name" ]] && continue
+  hook=$(yq eval '.metadata.annotations["argocd.argoproj.io/hook"] // ""' <<< "$doc")
+  wave=$(yq eval '.metadata.annotations["argocd.argoproj.io/sync-wave"] // "0"' <<< "$doc")
+  if [[ "$kind" == "ConfigMap" ]]; then
+    # shellcheck disable=SC2034 # read via nameref inside check_hook_resource_ordering
+    configmap_hook_by_name["$name"]="$hook"
+    # shellcheck disable=SC2034 # read via nameref inside check_hook_resource_ordering
+    configmap_wave_by_name["$name"]="$wave"
+  elif [[ "$kind" == "Secret" ]]; then
+    # shellcheck disable=SC2034 # read via nameref inside check_hook_resource_ordering
+    secret_hook_by_name["$name"]="$hook"
+    # shellcheck disable=SC2034 # read via nameref inside check_hook_resource_ordering
+    secret_wave_by_name["$name"]="$wave"
+  fi
+done
+
+hook_ordering_failed=0
+for doc in "${rendered_docs[@]}"; do
+  [[ -z "${doc//[[:space:]]/}" ]] && continue
+  kind=$(yq eval '.kind // ""' <<< "$doc")
+  [[ "$kind" != "Job" ]] && continue
+  job_hook=$(yq eval '.metadata.annotations["argocd.argoproj.io/hook"] // ""' <<< "$doc")
+  [[ "$job_hook" != "PreSync" && "$job_hook" != "PostSync" ]] && continue
+  job_name=$(yq eval '.metadata.name // ""' <<< "$doc")
+  job_wave=$(yq eval '.metadata.annotations["argocd.argoproj.io/sync-wave"] // "0"' <<< "$doc")
+
+  mapfile -t job_configmap_names < <(yq eval '.spec.template.spec.volumes // [] | .[] | select(has("configMap")) | .configMap.name' <<< "$doc")
+  mapfile -t job_secret_names < <(yq eval '.spec.template.spec.volumes // [] | .[] | select(has("secret")) | .secret.secretName' <<< "$doc")
+
+  check_hook_resource_ordering "ConfigMap" "$job_name" "$job_hook" "$job_wave" configmap_hook_by_name configmap_wave_by_name "${job_configmap_names[@]}"
+  check_hook_resource_ordering "Secret" "$job_name" "$job_hook" "$job_wave" secret_hook_by_name secret_wave_by_name "${job_secret_names[@]}"
+done
+
+if [[ "$hook_ordering_failed" -ne 0 ]]; then
+  echo "hook Job / ConfigMap-or-Secret sync-wave ordering check failed" >&2
+  exit 1
+fi
+echo "hook Job / ConfigMap-or-Secret sync-wave ordering check passed"
+
 if [ "$DRY_RUN" != "true" ]; then
   echo "dry-run disabled, stopping after lint/template"
   exit 0
@@ -39,7 +132,8 @@ fi
 # replicate. A plain (non-hook) Job is kept, since nothing here creates
 # a same-named Job repeatedly the way a hook does. Split the multi-doc
 # render on "---" and drop any document matching one of those. Plain
-# bash + grep -- yq isn't installed on this runner image.
+# bash + grep, matching the filtering approach already established here
+# before yq was introduced for the hook sync-wave check above.
 : > /tmp/rendered-filtered.yaml
 doc=""
 first=1

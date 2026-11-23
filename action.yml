@@ -1,10 +1,11 @@
 name: Helm chart check
 description: >-
   helm lint, helm unittest (when the chart has helm-unittest tests under
-  tests/), helm template, and (unless disabled) a server-side kubectl
-  dry-run against the real cluster -- catches admission-webhook
-  rejections client-side dry-run can't. The shared check for every
-  k8s- repo's chart.
+  tests/), helm template, a static check that every ArgoCD hook Job's
+  ConfigMap/Secret volumes have a guaranteed sync-wave ordering ahead of
+  the Job, and (unless disabled) a server-side kubectl dry-run against
+  the real cluster -- catches admission-webhook rejections client-side
+  dry-run can't. The shared check for every k8s- repo's chart.
 inputs:
   chart-path:
     description: Path to the Helm chart
