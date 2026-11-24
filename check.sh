@@ -108,6 +108,47 @@ if [[ "$hook_ordering_failed" -ne 0 ]]; then
 fi
 echo "hook Job / ConfigMap-or-Secret sync-wave ordering check passed"
 
+mapfile -t bats_files < <(find . -path './.git' -prune -o -name '*.bats' -print 2>/dev/null)
+if [[ "${#bats_files[@]}" -eq 0 ]]; then
+  echo "no .bats test files found, skipping bats"
+else
+  echo "found ${#bats_files[@]} .bats test file(s), running bats"
+  if ! command -v bats >/dev/null 2>&1; then
+    echo "bats not found, installing"
+    bats_install_dir="${RUNNER_TEMP:-/tmp}/actions-helm-bin"
+    mkdir -p "$bats_install_dir/bats-core-src"
+    curl -sfL "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz" \
+      | tar -xz -C "$bats_install_dir/bats-core-src" --strip-components=1
+    "$bats_install_dir/bats-core-src/install.sh" "$bats_install_dir/bats-install"
+    ln -sf "$bats_install_dir/bats-install/bin/bats" "$bats_install_dir/bats"
+    export PATH="$bats_install_dir:$PATH"
+  fi
+  bats "${bats_files[@]}"
+fi
+
+mapfile -t shell_scripts < <(find . -path './.git' -prune -o -path '*/scripts/*.sh' -print 2>/dev/null)
+if [[ "${#shell_scripts[@]}" -eq 0 ]]; then
+  echo "no scripts/*.sh files found, skipping shellcheck"
+else
+  echo "found ${#shell_scripts[@]} script(s) under a scripts/ directory, running shellcheck"
+  if ! command -v shellcheck >/dev/null 2>&1; then
+    echo "shellcheck not found, installing"
+    shellcheck_install_dir="${RUNNER_TEMP:-/tmp}/actions-helm-bin"
+    mkdir -p "$shellcheck_install_dir"
+    case "$(uname -m)" in
+      x86_64) shellcheck_arch=x86_64 ;;
+      aarch64|arm64) shellcheck_arch=aarch64 ;;
+      *) echo "unsupported architecture for shellcheck install: $(uname -m)" >&2; exit 1 ;;
+    esac
+    curl -sfL "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.${shellcheck_arch}.tar.xz" \
+      | tar -xJ -C "$shellcheck_install_dir" "shellcheck-v0.11.0/shellcheck"
+    mv "$shellcheck_install_dir/shellcheck-v0.11.0/shellcheck" "$shellcheck_install_dir/shellcheck"
+    chmod +x "$shellcheck_install_dir/shellcheck"
+    export PATH="$shellcheck_install_dir:$PATH"
+  fi
+  shellcheck "${shell_scripts[@]}"
+fi
+
 if [ "$DRY_RUN" != "true" ]; then
   echo "dry-run disabled, stopping after lint/template"
   exit 0

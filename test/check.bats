@@ -6,6 +6,7 @@ setup() {
   export CHART_PATH="unused"
   export NAMESPACE="testns"
   export KUBECTL_APPLY_INPUT_FILE="$BATS_TEST_TMPDIR/kubectl-apply-input.yaml"
+  cd "$BATS_TEST_TMPDIR"
 }
 
 @test "dry-run disabled stops after lint/template, never calls kubectl" {
@@ -127,4 +128,75 @@ setup() {
   run bash "$BATS_TEST_DIRNAME/../check.sh"
   [ "$status" -eq 0 ]
   grep -qF -- "--namespace testns" <(grep "apply" "$KUBECTL_CALL_LOG")
+}
+
+@test "repo with no .bats files skips bats cleanly" {
+  export DRY_RUN=false
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no .bats test files found"* ]]
+}
+
+@test "repo with a passing .bats file runs it via bats" {
+  export DRY_RUN=false
+  mkdir -p manifests/tests
+  cat > manifests/tests/example.bats <<'EOF'
+#!/usr/bin/env bats
+
+@test "trivial passing test" {
+  [ 1 -eq 1 ]
+}
+EOF
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"found 1 .bats test file(s)"* ]]
+  [[ "$output" == *"trivial passing test"* ]]
+}
+
+@test "repo with a failing .bats file fails the check" {
+  export DRY_RUN=false
+  mkdir -p manifests/tests
+  cat > manifests/tests/example.bats <<'EOF'
+#!/usr/bin/env bats
+
+@test "trivial failing test" {
+  [ 1 -eq 2 ]
+}
+EOF
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"trivial failing test"* ]]
+}
+
+@test "repo with no scripts/*.sh files skips shellcheck cleanly" {
+  export DRY_RUN=false
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no scripts/*.sh files found"* ]]
+}
+
+@test "repo with a clean scripts/*.sh file runs shellcheck" {
+  export DRY_RUN=false
+  mkdir -p manifests/scripts
+  cat > manifests/scripts/example.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "hello"
+EOF
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"found 1 script(s) under a scripts/ directory"* ]]
+}
+
+@test "repo with a shellcheck violation under scripts/ fails the check" {
+  export DRY_RUN=false
+  mkdir -p manifests/scripts
+  cat > manifests/scripts/example.sh <<'EOF'
+#!/usr/bin/env bash
+FOO=$(date)
+echo $FOO
+EOF
+  run bash "$BATS_TEST_DIRNAME/../check.sh"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"SC2086"* ]]
 }
